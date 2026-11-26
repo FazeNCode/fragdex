@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A FragDex list</title>
+  <meta name="description" content="A fragrance list shared from FragDex: wanted, for trade or for sale.">
+  <meta name="robots" content="noindex, nofollow">
+  <!-- A link preview is read from this static page, before any script runs, so it
+       is the same for every list: a FragDex card, not the list's own title. -->
+  <meta property="og:site_name" content="FragDex">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="A fragrance list on FragDex">
+  <meta property="og:description" content="Wanted, for trade or for sale. Open it to see what is on the list.">
+  <meta property="og:image" content="https://fragdex.wrenchsup.com/img/og-list.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="FragDex: a fragrance list">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="A fragrance list on FragDex">
+  <meta name="twitter:description" content="Wanted, for trade or for sale. Open it to see what is on the list.">
+  <meta name="twitter:image" content="https://fragdex.wrenchsup.com/img/og-list.png">
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .kind { display: inline-block; padding: 3px 10px; border-radius: 6px; background: var(--navy); color: var(--paper);
+      font-weight: 800; font-size: 13px; letter-spacing: .08em; }
+    .owner { color: var(--ink-soft); margin: 4px 0 16px; }
+    .note { white-space: pre-wrap; }
+    .contact { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--card); }
+    .contact small { display: block; color: var(--ink-soft); }
+    .items { list-style: none; padding: 0; margin: 20px 0; display: grid; gap: 10px; }
+    .item { display: flex; gap: 12px; align-items: center; padding: 10px; border: 1px solid var(--rule); border-radius: 10px; background: var(--card); }
+    .art { width: 56px; height: 74px; flex: none; display: flex; align-items: center; justify-content: center; }
+    .art img { max-width: 100%; max-height: 100%; mix-blend-mode: multiply; }
+    @media (prefers-color-scheme: dark) { .art img { mix-blend-mode: normal; border-radius: 4px; } }
+    .brand-line { color: var(--ink-soft); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 0; }
+    .name { font-weight: 700; margin: 0; }
+    .detail { color: var(--ink-soft); font-size: 14px; margin: 2px 0 0; }
+    .price { margin-left: auto; font-weight: 800; white-space: nowrap; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+    .button { display: inline-block; padding: 10px 16px; border-radius: 8px; background: var(--navy); color: var(--paper); text-decoration: none; font-weight: 700; }
+    .fine { color: var(--ink-soft); font-size: 13px; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="brand" href="../">FRAGDEX</a>
+    <h1 id="title">Loading…</h1>
+    <p class="owner" id="owner" hidden></p>
+  </header>
+
+  <div id="content" hidden>
+    <p><span class="kind" id="kind"></span></p>
+    <p class="note" id="note" hidden></p>
+    <div class="contact" id="contact" hidden><small>Contact the collector</small><span id="contact-text"></span></div>
+    <ul class="items" id="items"></ul>
+    <div class="actions">
+      <a class="button" id="open-app" href="#">Open in FragDex</a>
+    </div>
+    <p class="fine">FragDex only shows this list. It does not process payments or messages, and it does not verify
+      what is listed or who lists it. Agree prices, condition and shipping with the collector yourself, and be careful.
+      Links and phone numbers are removed from lists. To report this one, open it in the FragDex app, or
+      <a id="report" href="#">email us</a>.</p>
+  </div>
+
+  <p id="missing" hidden>This list is not available. The collector may have turned the link off, or the link may be wrong.</p>
+
+  <footer>
+    <a href="../privacy/">Privacy Policy</a> · © 2026 WrenchsUp Inc.
+  </footer>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  // The project's public (publishable) key: it only lets this page call the one
+  // function anyone may call, get_shared_list, which returns what the collector
+  // chose to share and nothing else.
+  var API = 'https://vyqpjgcgypcmordlymgf.supabase.co/rest/v1/rpc/get_shared_list';
+  var KEY = 'sb_publishable_W3tKzYTIQJ4qaUtQZHK1dg_4uN7hwO-';
+  var KINDS = { wishlist: 'WANTED', trade: 'FOR TRADE', sell: 'FOR SALE' };
+  var CONDITIONS = { sealed: 'Sealed', like_new: 'Like new', used: 'Used' };
+  var KIND_NAMES = { full: 'Full bottle', decant: 'Decant', sample: 'Sample', tester: 'Tester' };
+
+  var params = new URLSearchParams(location.search);
+  var slug = (params.get('s') || location.hash.replace(/^#/, '')).toLowerCase();
+
+  // A random id kept in this browser, so the collector's view count counts people
+  // (once a day each) and not refreshes. It is never sent anywhere else and holds
+  // nothing about the visitor; without storage it is simply not counted.
+  function visitorId() {
+    try {
+      var key = 'fragdex.visitor';
+      var id = localStorage.getItem(key);
+      if (!/^[0-9a-f]{32}$/.test(id || '')) {
+        var bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        id = Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+        localStorage.setItem(key, id);
+      }
+      return id;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function el(id) { return document.getElementById(id); }
+  function show(node, on) { node.hidden = !on; }
+
+  function missing() {
+    el('title').textContent = 'List not found';
+    show(el('missing'), true);
+  }
+
+  // Only https images, and only as <img src>: nothing from the list is ever
+  // written as HTML, every string goes in through textContent.
+  function safeImage(url) {
+    return typeof url === 'string' && /^https:\/\//i.test(url) ? url : null;
+  }
+
+  function money(price, currency) {
+    var n = Number(price);
+    if (!isFinite(n)) return '';
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'USD' }).format(n);
+    } catch (e) {
+      return n.toFixed(2) + ' ' + (currency || '');
+    }
+  }
+
+  function render(list) {
+    var kind = KINDS[list.kind] || '';
+    var title = list.title || (list.kind === 'wishlist' ? 'Wishlist' : list.kind === 'trade' ? 'For trade' : 'For sale');
+    document.title = title + ' · FragDex';
+    el('title').textContent = title;
+    el('owner').textContent = '@' + list.owner;
+    show(el('owner'), Boolean(list.owner));
+    el('kind').textContent = kind;
+    if (list.note) { el('note').textContent = list.note; show(el('note'), true); }
+    if (list.contact) { el('contact-text').textContent = list.contact; show(el('contact'), true); }
+
+    var ul = el('items');
+    var items = Array.isArray(list.items) ? list.items : [];
+    if (!items.length) {
+      var empty = document.createElement('li');
+      empty.className = 'detail';
+      empty.textContent = 'Nothing on this list yet.';
+      ul.appendChild(empty);
+    }
+    items.forEach(function (item) {
+      var li = document.createElement('li');
+      li.className = 'item';
+      var art = document.createElement('div');
+      art.className = 'art';
+      var src = safeImage(item.image_url);
+      if (src) {
+        var img = document.createElement('img');
+        img.src = src; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+        art.appendChild(img);
+      }
+      var text = document.createElement('div');
+      var brand = document.createElement('p'); brand.className = 'brand-line'; brand.textContent = item.brand || '';
+      var name = document.createElement('p'); name.className = 'name'; name.textContent = item.name || '';
+      text.appendChild(brand); text.appendChild(name);
+      var bits = [];
+      if (item.kind && KIND_NAMES[item.kind]) bits.push(KIND_NAMES[item.kind]);
+      if (item.size_ml) bits.push(Number(item.size_ml) + ' ml');
+      if (item.condition && CONDITIONS[item.condition]) bits.push(CONDITIONS[item.condition]);
+      if (bits.length) { var d = document.createElement('p'); d.className = 'detail'; d.textContent = bits.join(' · '); text.appendChild(d); }
+      if (item.note) { var n = document.createElement('p'); n.className = 'detail'; n.textContent = item.note; text.appendChild(n); }
+      li.appendChild(art); li.appendChild(text);
+      if (item.price !== null && item.price !== undefined) {
+        var price = document.createElement('span'); price.className = 'price'; price.textContent = money(item.price, item.currency);
+        li.appendChild(price);
+      }
+      ul.appendChild(li);
+    });
+
+    el('open-app').href = 'fragdex://list/' + list.slug;
+    el('report').href = 'mailto:fragdex@wrenchsup.com?subject=' +
+      encodeURIComponent('Report shared list ' + list.slug) +
+      '&body=' + encodeURIComponent('Tell us what is wrong with this list:\n\n');
+    show(el('content'), true);
+  }
+
+  if (!/^[0-9a-f]{16}$/.test(slug)) { missing(); return; }
+  fetch(API, {
+    method: 'POST',
+    headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_slug: slug, p_visitor: visitorId() })
+  }).then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (list) { if (list && list.slug) render(list); else missing(); })
+    .catch(missing);
+})();
+</script>
+</body>
+</html>
