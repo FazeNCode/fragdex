@@ -38,6 +38,7 @@
     .detail { color: var(--ink-soft); font-size: 14px; margin: 2px 0 0; }
     .price { margin-left: auto; font-weight: 800; white-space: nowrap; }
     .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+    .get-app { margin: 10px 0 0; font-size: 14px; }
     .button { display: inline-block; padding: 10px 16px; border-radius: 8px; background: var(--navy); color: var(--paper); text-decoration: none; font-weight: 700; }
     .fine { color: var(--ink-soft); font-size: 13px; }
   </style>
@@ -57,6 +58,7 @@
     <ul class="items" id="items"></ul>
     <div class="actions">
       <a class="button" id="open-app" href="#">Open in FragDex</a>
+      <p class="get-app">Don't have FragDex? <a id="get-app" href="https://apps.apple.com/app/id6803239280">Get it free</a></p>
     </div>
     <p class="fine">FragDex only shows this list. It does not process payments or messages, and it does not verify
       what is listed or who lists it. Agree prices, condition and shipping with the collector yourself, and be careful.
@@ -177,11 +179,42 @@
       ul.appendChild(li);
     });
 
-    el('open-app').href = 'fragdex://list/' + list.slug;
+    openAppButton(list.slug);
     el('report').href = 'mailto:fragdex@wrenchsup.com?subject=' +
       encodeURIComponent('Report shared list ' + list.slug) +
       '&body=' + encodeURIComponent('Tell us what is wrong with this list:\n\n');
     show(el('content'), true);
+  }
+
+  // "Open in FragDex": the app when it is installed, else its store page.
+  // Android: Chrome's intent link does both by itself. iPhone (and anything
+  // else): try the app's own link; if the page is still showing a moment
+  // later, the app did not open, so go to the App Store. A shared link opened
+  // on an iPhone WITH the app goes straight into the app (universal link, see
+  // /.well-known/apple-app-site-association), so this page is mostly seen by
+  // people without it, or inside a social app's own browser.
+  var APP_STORE = 'https://apps.apple.com/app/id6803239280';
+  var PLAY_STORE = 'https://play.google.com/store/apps/details?id=com.fragdex.app';
+  function openAppButton(listSlug) {
+    var button = el('open-app');
+    var android = /Android/i.test(navigator.userAgent);
+    if (android) {
+      button.href = 'intent://list/' + listSlug + '#Intent;scheme=fragdex;package=com.fragdex.app;S.browser_fallback_url=' +
+        encodeURIComponent(PLAY_STORE) + ';end';
+      el('get-app').href = PLAY_STORE;
+      return;
+    }
+    button.href = 'fragdex://list/' + listSlug;
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      var left = false;
+      function gone() { left = true; }
+      document.addEventListener('visibilitychange', function () { if (document.hidden) gone(); }, { once: true });
+      window.addEventListener('pagehide', gone, { once: true });
+      window.addEventListener('blur', gone, { once: true });
+      setTimeout(function () { if (!left && !document.hidden) window.location.href = APP_STORE; }, 1600);
+      window.location.href = 'fragdex://list/' + listSlug;
+    });
   }
 
   if (!/^[0-9a-f]{16}$/.test(slug)) { missing(); return; }
